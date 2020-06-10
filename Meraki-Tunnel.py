@@ -76,6 +76,9 @@ for i in tagsnetwork:
             break # if box isnt firmware compliant we break from the loop
         modelnumber = xdevices['model']
 
+        primary_vpn_tunnel_ip = ''
+        secondary_vpn_tunnel_ip = ''
+
         # detecting region to determine umbrella public IP addresses to place in IPsec config
         if "SIG-US1-" in i['tags']: # US West Region
             # primary tunnel will be built to the LA PoP
@@ -129,3 +132,45 @@ for i in tagsnetwork:
         secondary_vpn_tunnel_name = secondary_vpn_ip.replace('theplaceholder' , secondary_vpn_name) # replaces placeholder value with dashboard network name
         secondary_vpn_tunnel_psk = secondary_vpn_tunnel_name.replace('meraki223', psk) # replace with pre shared key variable generated above
 
+        # obtaining list of current connectivity monitoring destinations for the network
+
+        mx_destinations = mdashboard.connectivity_monitoring_destinations.getNetworkConnectivityMonitoringDestinations(str(network_info))
+        print(mx_destinations['destinations'][0]['ip'])
+
+        vpn_site_config = []
+
+        # now build dictionary template to then later append to the list
+
+        def newdestination(vpn_ipaddress):
+                site_config = {"ip": vpn_ipaddress, "description": "primary vpn peer", "default": False}
+                vpn_site_config.append(site_config)
+
+        newdestination(primary_vpn_tunnel_ip) 
+
+        # need to detect if vpn peer IPs are already contained in the connectivity monitoring destinations
+
+        connectivity_monitor_updated = False
+
+        for vpn_peer_ip in mx_destinations['destinations']: #  iterating through connectivity monitoring list of destinations
+            if vpn_peer_ip['ip'] == primary_vpn_tunnel_ip:  #  matches vpn peer ip in merakivpns variable
+                # creating new variable to indicate that dictionary should not be appended to connectivity monitoring list if this value is already contained
+                connectivity_monitor_updated = True
+
+        print("look below")
+        print(vpn_site_config[0])
+        print(mx_destinations['destinations'])
+
+
+        if connectivity_monitor_updated == False:
+            # appending new vpn site config to the original destination list
+            original_destination_list = mx_destinations['destinations']
+            original_destination_list.append(vpn_site_config[0])
+            mx_destinations['destinations'] = original_destination_list
+            print(original_destination_list)
+
+        # updating connectivity monitoring destinations for tagged network
+
+        if connectivity_monitor_updated == False:
+            payload = ast.literal_eval(original_destination_list)
+            # if payload == {'a': 1, 'b': 'c'}, then sending **payload will result in function call with (…, a=‘1’, ‘b’=‘c’) as arguments
+            update_mx_destinations = mdashboard.connectivity_monitoring_destinations.updateNetworkConnectivityMonitoringDestinations(str(network_info), **payload)
