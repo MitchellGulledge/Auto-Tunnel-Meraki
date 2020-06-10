@@ -18,14 +18,14 @@ import base64
 
 # Umbrella credentials are placed below
 umbrella_config = {
-    'umbrella_api_key': "f04f785298f747b1ae2527d1282da6c1",  # umbrella management API key
-    'umbrella_orgId': "2506818"
+    'umbrella_api_key': "",  # umbrella management API key
+    'umbrella_orgId': ""
 }
 
 # Meraki credentials are placed below
 meraki_config = {
-	'api_key': "b7338fdc5024d9a1cfe649ca23b659ae9f706c0f",
-	'orgName': "Cloud Test Org"
+	'api_key': "",
+	'orgName': ""
 }
 
 # creating Umbrella access token
