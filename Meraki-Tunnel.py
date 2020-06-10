@@ -1,7 +1,4 @@
-from ipwhois import IPWhois
-import requests
-import json
-import time
+import requests, json, time
 import meraki
 from io import BytesIO
 from operator import itemgetter
@@ -13,15 +10,26 @@ import os
 import datetime as dt
 from datetime import datetime, timedelta
 import ast
-from IPy import IP
+import subprocess
+import base64
 
-netname2 = 'SIGbranch-sec' # temp cariable for now
+
+# This code is for automation of tunnels between MX Security Appliances and Umbrella SIG
+
+# Umbrella credentials are placed below
+umbrella_config = {
+    'umbrella_api_key': "f04f785298f747b1ae2527d1282da6c1",  # umbrella management API key
+    'umbrella_orgId': "2506818"
+}
 
 # Meraki credentials are placed below
 meraki_config = {
-	'api_key': "",
+	'api_key': "b7338fdc5024d9a1cfe649ca23b659ae9f706c0f",
 	'orgName': "Cloud Test Org"
 }
+
+# creating Umbrella access token
+
 
 # writing function to obtain org ID via linking ORG name
 mdashboard = meraki.DashboardAPI(meraki_config['api_key'])
@@ -30,7 +38,7 @@ for x in result_org_id:
     if x['name'] == meraki_config['orgName']:
         meraki_config['org_id'] = x['id']
 
-# Generate random password for site to site VPN config
+# Generate random password for site to site VPN config, this needs to be updated to fit umbrellas PSK requirement
 psk = pwgenerator.generate()
 print(psk)
 
@@ -48,191 +56,76 @@ merakivpns.append(originalvpn)
 # Meraki call to obtain Network information
 tagsnetwork = mdashboard.networks.getOrganizationNetworks(meraki_config['org_id'])
 
-# loop that iterates through the variable tagsnetwork and matches networks with vWAN in the tag
+# loop that iterates through the variable tagsnetwork and matches networks with SIG- in the tag
 for i in tagsnetwork:
     if i['tags'] is None or i['name'] == 'Tag-Placeholder':
         pass
-    elif "SIG-" in i['tags']:
+    # searches for any network that has a tag beginning with SIG-, this is since each meraki network will need a unique identifier
+    elif "SIG-" in i['tags']: 
         network_info = i['id'] # need network ID in order to obtain device/serial information
-        netname = i['name'] # network name used to label Meraki VPN and Azure config
+        netname = i['name'] # network name used to label Meraki VPN and Umbrella config
         nettag = i['tags']  # obtaining all tags for network as this will be placed in VPN config
-        va = mdashboard.networks.getNetworkSiteToSiteVpn(network_info) # gets branch local vpn subnets
-        testextract = ([x['localSubnet'] for x in va['subnets']
-						if x['useVpn'] == True])  # list comprehension to filter for subnets in vpn
-        (testextract)
-        privsub = str(testextract)[1:-1] # needed to parse brackets
         devices = mdashboard.devices.getNetworkDevices(network_info) # call to get device info
-        xdevices = devices[0]
-        # adding NAT detection for network device, need to complete
-
-        meraki_local_uplink_ip = IP(xdevices['lanIp'])
-        print(meraki_local_uplink_ip.iptype())
-        if meraki_local_uplink_ip.iptype() == 'PRIVATE':
-            print("nat detected")
-            break
-
+        xdevices = devices[0] # just parsing brackets
         up = xdevices['serial'] # serial number to later obtain the uplink information for the appliance
         firmwareversion = xdevices['firmware'] # now we obtained the firmware version, need to still add the validation portion
-        firmwarecompliance = str(firmwareversion).startswith("wired-15") # validation to say True False if appliance is on 15 firmware
+        firmwarecompliance = str(firmwareversion).startswith("wired-15") # validation to say True False if MX appliance is on 15 firmware
         if firmwarecompliance == True:
             print("firmware is compliant")
         else:
             break # if box isnt firmware compliant we break from the loop
         modelnumber = xdevices['model']
 
-        uplinks = mdashboard.devices.getNetworkDeviceUplink(network_info, up) # obtains uplink information for branch
+        # detecting region to determine umbrella public IP addresses to place in IPsec config
+        if "SIG-US1-" in i['tags']: # US West Region
+            # primary tunnel will be built to the LA PoP
+            primary_vpn_tunnel_ip = '146.112.67.8'
+            # backup tunnel will be built to the Palo Alto PoP
+            secondary_vpn_tunnel_ip = '146.112.66.8'
+        elif "SIG-US2-" in i['tags']: # US East Region
+            # primary tunnel will be built to the NY PoP
+            primary_vpn_tunnel_ip = '146.112.83.8'
+            # backup tunnel will be built to the Ashburn PoP
+            secondary_vpn_tunnel_ip = '146.112.82.8'
+        elif "SIG-EU-" in i['tags']: # EMEAR Region
+            # primary tunnel will be built to the UK PoP
+            primary_vpn_tunnel_ip = '146.112.97.8'
+            # backup tunnel will be built to the DE PoP
+            secondary_vpn_tunnel_ip = '146.112.96.8'
+        elif "SIG-AU-" in i['tags']: # AUS Region
+            # primary tunnel will be built to the SYD PoP
+            primary_vpn_tunnel_ip = '146.112.118.8'
+            # backup tunnel will be built to the Melbourn PoP
+            secondary_vpn_tunnel_ip = '146.112.119.8'
+        elif "SIG-AS-" in i['tags']: # ASIA Region
+            # primary tunnel will be built to the SG PoP
+            primary_vpn_tunnel_ip = '146.112.113.8'
+            # backup tunnel will be built to the JP PoP
+            secondary_vpn_tunnel_ip = '146.112.112.8'
 
-		# creating keys for dictionaries inside dictionaries
-        uplinks_info = dict.fromkeys(['WAN1', 'WAN2', 'Cellular'])
-        uplinks_info['WAN1'] = dict.fromkeys(
-            ['interface', 'status', 'ip', 'gateway', 'publicIp', 'dns', 'usingStaticIp'])
-        uplinks_info['WAN2'] = dict.fromkeys(
-            ['interface', 'status', 'ip', 'gateway', 'publicIp', 'dns', 'usingStaticIp'])
-        uplinks_info['Cellular'] = dict.fromkeys(
-            ['interface', 'status', 'ip', 'provider', 'publicIp', 'model', 'connectionType'])
+        # need to do a post to umbrella with the netname variable as the tunnel name
 
-        for uplink in uplinks:
-            if uplink['interface'] == 'WAN 1':
-                for key in uplink.keys():
-                    uplinks_info['WAN1'][key] = uplink[key]
-            elif uplink['interface'] == 'WAN 2':
-                for key in uplink.keys():
-                    uplinks_info['WAN2'][key] = uplink[key]
-            elif uplink['interface'] == 'Cellular':
-                for key in uplink.keys():
-                    uplinks_info['Cellular'][key] = uplink[key]
+        # below parses the for the specific network tag on the network that correlates with SIG-
+        specifictag = re.findall(r'[S]+[I]+[G]+[-].*', str(nettag))
+        specifictag1 = re.findall(r'^([\S]+)', str(specifictag[0]))
+        print(specifictag1[0])
 
-        # writing function to get ISP
-        splist = []
+        # need to start building a dictionary (might be string for now) to append to the array of meraki vpns
+        # sample IPsec template config that is later replaced with corresponding Azure variables (PSK pub IP, lan IP etc)
 
-        uplinksetting = mdashboard.uplink_settings.getNetworkUplinkSettings(network_info) # obtains meraki sd wan traffic shaping uplink settings
-        secondaryuplinkindicator = 'False'
-        for g in uplinks_info:
-                # loops through the variable uplinks_info which reveals the value for each uplink key
-                if (uplinks_info['WAN2']['status'] == "Active" or uplinks_info['WAN2']['status'] == "Ready") and (uplinks_info['WAN1']['status'] == "Active" or uplinks_info['WAN1']['status'] == "Ready"):
-                    logging.info("both uplinks active")
+        primary_vpn_tunnel_template = '{"name":"placeholder","publicIp":"192.0.0.0","privateSubnets":["0.0.0.0/0"],"secret":"meraki123", "ipsecPolicies":{"ikeCipherAlgo":["aes256"],"ikeAuthAlgo":["sha1"],"ikeDiffieHellmanGroup":["group2"],"ikeLifetime":28800,"childCipherAlgo":["aes256"],"childAuthAlgo":["sha1"],"childPfsGroup":["group2"],"childLifetime":3600},"networkTags":["west"]}'
+        primary_vpn_tunnel_tag = primary_vpn_tunnel_template.replace("west", specifictag[0]) # applies specific tag from org overview page to ipsec config
+        primary_vpn_ip = primary_vpn_tunnel_tag.replace('192.0.0.0', primary_vpn_tunnel_ip)   # change variable to primary_vpn_tunnel_ip value
+        primary_vpn_tunnel_name = primary_vpn_ip.replace('placeholder' , netname) # replaces placeholder value with dashboard network name
+        add_vpn_psk = primary_vpn_tunnel_name.replace('meraki123', psk) # replace with pre shared key variable generated above
+        newmerakivpns = merakivpns[0]
 
-                    pubs = uplinks_info['WAN1']['publicIp']
-                    obj = IPWhois(pubs)
-                    res=obj.lookup_whois()
-                    localsp = res["nets"][0]['name']
+        # creating second data input to append instance 1 to the merakivpn list
 
-                    pubssec = uplinks_info['WAN2']['publicIp']
-                    secondaryuplinkindicator = 'True'
-                    if(pubs == pubssec):
-                        # This true section should be removed in favor of NAT-T detection at beginning of script
-                        secip = "1.2.3.4"
-                        secisp = localsp
-                    else:
-                        isp2obj = IPWhois(pubssec)
-                        isp2res=obj.lookup_whois()
-                        secisp = res["nets"][0]['name']
-
-                    port = (uplinksetting['bandwidthLimits']['wan1']['limitDown'])/1000
-                    wan2port = (uplinksetting['bandwidthLimits']['wan2']['limitDown'])/1000
-
-                elif uplinks_info['WAN2']['status'] == "Active":
-                    pubs = uplinks_info['WAN2']['publicIp']
-                    port = (uplinksetting['bandwidthLimits']['wan2']['limitDown'])/1000
-                    isp2obj = IPWhois(pubssec)
-                    isp2res=obj.lookup_whois()
-                    secisp = res["nets"][0]['name']
-
-                elif uplinks_info['WAN1']['status'] == "Active":
-                    pubs = uplinks_info['WAN1']['publicIp']
-                    port = (uplinksetting['bandwidthLimits']['wan1']['limitDown'])/1000
-                    obj = IPWhois(pubs)
-                    res=obj.lookup_whois()
-                    localsp = res["nets"][0]['name']
-
-                else:
-                    print("uplink info error")
-
-
-
-# list for primary vpn public IP
-
-primary_vpn_peer_ip = []
-
-# updating preshared key for primary VPN tunnel
-
-for vpnpeers in merakivpns[0]: # iterates through the list of VPNs from the original call
-    if vpnpeers['name'] == netname: # matches against network name that is meraki network name variable
-        if vpnpeers['secret'] != psk: # if statement for if password in VPN doesnt match psk variable
-            vpnpeers['secret'] = psk # updates the pre shared key for the vpn dictionary
-
-            # matching the IP address of primary vpn peer to add for connectivity monitoring later
-            primary_vpn_peer_ip.append(vpnpeers['publicIp'])
-
-print(primary_vpn_peer_ip)
-
-# updating preshared key for backup VPN tunnel
-
-for vpnpeers in merakivpns[0]: # iterates through the list of VPNs from the original call
-    if vpnpeers['name'] == str(netname2) + '-sec': # matches against network name that is netname variable
-        if vpnpeers['secret'] != psk: # if statement for if password in VPN doesnt match psk variable
-            vpnpeers['secret'] = psk # updates the pre shared key for the vpn dictionary
-
-
-# obtaining list of current connectivity monitoring destinations for the network
-
-mx_destinations = mdashboard.connectivity_monitoring_destinations.getNetworkConnectivityMonitoringDestinations(str(network_info))
-print(mx_destinations['destinations'][0]['ip'])
-
-vpn_site_config = []
-
-# now build dictionary template to then later append to the list
-
-def newdestination(vpn_ipaddress):
-        site_config = {"ip": vpn_ipaddress, "description": "primary vpn peer", "default": False}
-        vpn_site_config.append(site_config)
-
-newdestination(primary_vpn_peer_ip[0]) 
-
-# need to detect if vpn peer IPs are already contained in the connectivity monitoring destinations
-
-connectivity_monitor_updated = False
-
-for vpn_peer_ip in mx_destinations['destinations']: #  iterating through connectivity monitoring list of destinations
-    if vpn_peer_ip['ip'] == primary_vpn_peer_ip[0]:  #  matches vpn peer ip in merakivpns variable
-        # creating new variable to indicate that dictionary should not be appended to connectivity monitoring list if this value is already contained
-        connectivity_monitor_updated = True
-
-print("look below")
-print(vpn_site_config[0])
-print(mx_destinations['destinations'])
-
-
-if connectivity_monitor_updated == False:
-    # appending new vpn site config to the original destination list
-    original_destination_list = mx_destinations['destinations']
-    original_destination_list.append(vpn_site_config[0])
-    mx_destinations['destinations'] = original_destination_list
-    print(original_destination_list)
-
-print("above")
-
-
-# updating connectivity monitoring destinations for tagged network
-
-if connectivity_monitor_updated == False:
-    payload = ast.literal_eval(original_destination_list)
-    # if payload == {'a': 1, 'b': 'c'}, then sending **payload will result in function call with (…, a=‘1’, ‘b’=‘c’) as arguments
-    update_mx_destinations = mdashboard.connectivity_monitoring_destinations.updateNetworkConnectivityMonitoringDestinations(str(network_info), **payload)
-
-# creating sample list as skeleton for appending VPN peers list
-
-vpn_site_peer = []
-
-# now build dictionary template to then later append to the list if the tunnel is not configured
-
-def add_newdestination(vpn_peer_public_ip, vpn_peer_connected_subnets, psk):
-    new_vpn_peer_config = {"name":netname,"publicIp":vpn_peer_public_ip,"privateSubnets":vpn_peer_connected_subnets,"secret":psk, "ipsecPolicies":{"ikeCipherAlgo":["aes256"],"ikeAuthAlgo":["sha1"],"ikeDiffieHellmanGroup":["group2"],"ikeLifetime":28800,"childCipherAlgo":["aes256"],"childAuthAlgo":["sha1"],"childPfsGroup":["group2"],"childLifetime":3600},"networkTags":["east"]}        
-    vpn_site_peer.append(new_vpn_peer_config)
-
-for vpn_peers in merakivpns[0]: # iterates through the list of VPNs from the original call
-    if vpnpeers['name'] != netname: # matches against network name that is meraki network name variable
-        # then execute add_newdestinations function
-        add_newdestination('1.1.1.1', "['1.1.1.1/32']", psk) # statically setting variables for now
-
+        secondary_vpn_tunnel_template = '{"name":"theplaceholder","publicIp":"192.1.0.0","privateSubnets":["0.0.0.0/1"],"secret":"meraki223", "ipsecPolicies":{"ikeCipherAlgo":["aes256"],"ikeAuthAlgo":["sha1"],"ikeDiffieHellmanGroup":["group2"],"ikeLifetime":28800,"childCipherAlgo":["aes256"],"childAuthAlgo":["sha1"],"childPfsGroup":["group2"],"childLifetime":3600},"networkTags":["east"]}'
+        secondary_vpn_name = str(netname) + "-sec" # adding the -sec to the netname variable to distinguish the 2 tunnels in Meraki dashboard
+        secondary_vpn_tunnel_tag = secondary_vpn_tunnel_template.replace("east", specifictag[0] + "-sec") # applies specific tag from org overview page to ipsec config need to make this secondary
+        secondary_vpn_ip = secondary_vpn_tunnel_tag.replace('192.1.0.0', secondary_vpn_tunnel_ip) # placing secondary tunnel public ip over placeholder
+        secondary_vpn_tunnel_name = secondary_vpn_ip.replace('theplaceholder' , secondary_vpn_name) # replaces placeholder value with dashboard network name
+        secondary_vpn_tunnel_psk = secondary_vpn_tunnel_name.replace('meraki223', psk) # replace with pre shared key variable generated above
 
