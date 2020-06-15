@@ -10,17 +10,9 @@ import os
 import datetime as dt
 from datetime import datetime, timedelta
 import ast
-import subprocess
-import base64
-
+import sys
 
 # This code is for automation of tunnels between MX Security Appliances and Umbrella SIG
-
-# Umbrella credentials are placed below
-umbrella_config = {
-    'umbrella_api_key': "",  # umbrella management API key
-    'umbrella_orgId': ""
-}
 
 # Meraki credentials are placed below
 meraki_config = {
@@ -28,19 +20,12 @@ meraki_config = {
 	'orgName': ""
 }
 
-# creating Umbrella access token
-
-
 # writing function to obtain org ID via linking ORG name
 mdashboard = meraki.DashboardAPI(meraki_config['api_key'])
 result_org_id = mdashboard.organizations.getOrganizations()
 for x in result_org_id:
     if x['name'] == meraki_config['orgName']:
         meraki_config['org_id'] = x['id']
-
-# Generate random password for site to site VPN config, this needs to be updated to fit umbrellas PSK requirement
-psk = pwgenerator.generate()
-print(psk)
 
 # branch subnets is a variable to display local branch site info
 branchsubnets = []
@@ -105,6 +90,35 @@ for i in tagsnetwork:
             primary_vpn_tunnel_ip = '146.112.113.8'
             # backup tunnel will be built to the JP PoP
             secondary_vpn_tunnel_ip = '146.112.112.8'
+        
+        # Set basics to make an API call to Umbrella for tunnel creation
+        url = '<a href="https://management.api.umbrella.com/v1/organizations/2506818/tunnels">https://management.api.umbrella.com/v1/organizations/2506818/tunnels</a>'
+        umbrella_tunnel_name = {"name": netname}
+        data = json.dumps(umbrella_tunnel_name)
+        # Executed following command to yield base64 of API Key:Secret. 
+        # Command -  echo -n 'secret:key' | base64
+        headers = {'Authorization': 'Basic <base64 value>'}
+
+        tunnel_already_made = False # placeholder variable that will get flipped true if Umbrella API indicates that the tunnel name already exists
+
+        # Send HTTP req to Umbrella 
+        req = requests.post('https://management.api.umbrella.com/v1/organizations/<Add umbrella org ID here>/tunnels', headers=headers, data=data)
+        print(req.reason)
+        if req.reason == 'Conflict': # if we obtain a reason code of Conflict meaning the tunnel is already made we will continue
+            tunnel_already_made = True
+            print("tunnel already made")
+        else:
+            tunnelRsp = json.loads(req.text)
+            # Access tunnel ID
+            tunnelId = tunnelRsp["id"]
+            print(tunnelId)
+
+            # Access PSK id:key
+            client = tunnelRsp["client"]
+            print(client["deviceType"])
+
+            tunnelPSKFqdn = client["authentication"]["parameters"]["id"] # parsing the local id/fqdn for the meraki vpn config here
+            tunnelPSKSecret = client["authentication"]["parameters"]["secret"] # parsing the pre shared key for the meraki vpn config here
 
         # need to do a post to umbrella with the netname variable as the tunnel name
 
@@ -116,61 +130,30 @@ for i in tagsnetwork:
         # need to start building a dictionary (might be string for now) to append to the array of meraki vpns
         # sample IPsec template config that is later replaced with corresponding Azure variables (PSK pub IP, lan IP etc)
 
-        primary_vpn_tunnel_template = '{"name":"placeholder","publicIp":"192.0.0.0","privateSubnets":["0.0.0.0/0"],"secret":"meraki123", "ipsecPolicies":{"ikeCipherAlgo":["aes256"],"ikeAuthAlgo":["sha1"],"ikeDiffieHellmanGroup":["group2"],"ikeLifetime":28800,"childCipherAlgo":["aes256"],"childAuthAlgo":["sha1"],"childPfsGroup":["group2"],"childLifetime":3600},"networkTags":["west"]}'
-        primary_vpn_tunnel_tag = primary_vpn_tunnel_template.replace("west", specifictag[0]) # applies specific tag from org overview page to ipsec config
-        primary_vpn_ip = primary_vpn_tunnel_tag.replace('192.0.0.0', primary_vpn_tunnel_ip)   # change variable to primary_vpn_tunnel_ip value
-        primary_vpn_tunnel_name = primary_vpn_ip.replace('placeholder' , netname) # replaces placeholder value with dashboard network name
-        add_vpn_psk = primary_vpn_tunnel_name.replace('meraki123', psk) # replace with pre shared key variable generated above
-        newmerakivpns = merakivpns[0]
+        if tunnel_already_made == False:
+            primary_vpn_tunnel_template = '{"name":"placeholder","publicIp":"192.0.0.0","privateSubnets":["0.0.0.0/0"],"secret":"meraki123", "ipsecPolicies":{"ikeCipherAlgo":["aes256"],"ikeAuthAlgo":["sha1"],"ikeDiffieHellmanGroup":["group2"],"ikeLifetime":28800,"childCipherAlgo":["aes256"],"childAuthAlgo":["sha1"],"childPfsGroup":["disabled"],"childLifetime":28800},"networkTags":["west"], "myUserFqdn":"mitch@umbrella.com"}'
+            primary_vpn_tunnel_tag = primary_vpn_tunnel_template.replace('west', specifictag1[0]) # applies specific tag from org overview page to ipsec config
+            primary_vpn_ip = primary_vpn_tunnel_tag.replace('192.0.0.0', primary_vpn_tunnel_ip)   # change variable to primary_vpn_tunnel_ip value
+            primary_vpn_tunnel_name = primary_vpn_ip.replace('placeholder' , netname) # replaces placeholder value with dashboard network name
+            add_vpn_psk = primary_vpn_tunnel_name.replace('meraki123', tunnelPSKSecret) # replace with pre shared key variable generated above
+            # need to add fqdn section
+            print(add_vpn_psk)
+            add_vpn_fqdn = add_vpn_psk.replace('mitch@umbrella.com',tunnelPSKFqdn)
+            print(add_vpn_fqdn)
+            newmerakivpns = merakivpns[0]
 
-        # creating second data input to append instance 1 to the merakivpn list
+            # creating secondary VPN tunnel
+            secondary_vpn_tunnel_template = '{"name":' + str(netname) + '"-sec","publicIp":' + str(secondary_vpn_tunnel_ip) + ',"privateSubnets":["0.0.0.0/0"],"secret":"' + str(tunnelPSKSecret) + ',"ipsecPolicies":{"ikeCipherAlgo":["aes256"],"ikeAuthAlgo":["sha1"],"ikeDiffieHellmanGroup":["group2"],"ikeLifetime":28800,"childCipherAlgo":["aes256"],"childAuthAlgo":["sha1"],"childPfsGroup":["group2"],"childLifetime":3600},"networkTags":["'+str(specifictag[0])+'"]}'
 
-        secondary_vpn_tunnel_template = '{"name":"theplaceholder","publicIp":"192.1.0.0","privateSubnets":["0.0.0.0/1"],"secret":"meraki223", "ipsecPolicies":{"ikeCipherAlgo":["aes256"],"ikeAuthAlgo":["sha1"],"ikeDiffieHellmanGroup":["group2"],"ikeLifetime":28800,"childCipherAlgo":["aes256"],"childAuthAlgo":["sha1"],"childPfsGroup":["group2"],"childLifetime":3600},"networkTags":["east"]}'
-        secondary_vpn_name = str(netname) + "-sec" # adding the -sec to the netname variable to distinguish the 2 tunnels in Meraki dashboard
-        secondary_vpn_tunnel_tag = secondary_vpn_tunnel_template.replace("east", specifictag[0] + "-sec") # applies specific tag from org overview page to ipsec config need to make this secondary
-        secondary_vpn_ip = secondary_vpn_tunnel_tag.replace('192.1.0.0', secondary_vpn_tunnel_ip) # placing secondary tunnel public ip over placeholder
-        secondary_vpn_tunnel_name = secondary_vpn_ip.replace('theplaceholder' , secondary_vpn_name) # replaces placeholder value with dashboard network name
-        secondary_vpn_tunnel_psk = secondary_vpn_tunnel_name.replace('meraki223', psk) # replace with pre shared key variable generated above
+            # appending newly created tunnel config to original VPN list
+            newmerakivpns.append(json.loads(add_vpn_fqdn)) # appending new vpn config with original vpn config
+            #newmerakivpns.append(json.loads(secondary_vpn_tunnel_template)) # appending backup tunnel config to vpn list
+            print(newmerakivpns)
 
-        # obtaining list of current connectivity monitoring destinations for the network
+        else:
+            print("tunnel already created")
 
-        mx_destinations = mdashboard.connectivity_monitoring_destinations.getNetworkConnectivityMonitoringDestinations(str(network_info))
-        print(mx_destinations['destinations'][0]['ip'])
-
-        vpn_site_config = []
-
-        # now build dictionary template to then later append to the list
-
-        def newdestination(vpn_ipaddress):
-                site_config = {"ip": vpn_ipaddress, "description": "primary vpn peer", "default": False}
-                vpn_site_config.append(site_config)
-
-        newdestination(primary_vpn_tunnel_ip) 
-
-        # need to detect if vpn peer IPs are already contained in the connectivity monitoring destinations
-
-        connectivity_monitor_updated = False
-
-        for vpn_peer_ip in mx_destinations['destinations']: #  iterating through connectivity monitoring list of destinations
-            if vpn_peer_ip['ip'] == primary_vpn_tunnel_ip:  #  matches vpn peer ip in merakivpns variable
-                # creating new variable to indicate that dictionary should not be appended to connectivity monitoring list if this value is already contained
-                connectivity_monitor_updated = True
-
-        print("look below")
-        print(vpn_site_config[0])
-        print(mx_destinations['destinations'])
-
-
-        if connectivity_monitor_updated == False:
-            # appending new vpn site config to the original destination list
-            original_destination_list = mx_destinations['destinations']
-            original_destination_list.append(vpn_site_config[0])
-            mx_destinations['destinations'] = original_destination_list
-            print(original_destination_list)
-
-        # updating connectivity monitoring destinations for tagged network
-
-        if connectivity_monitor_updated == False:
-            payload = ast.literal_eval(original_destination_list)
-            # if payload == {'a': 1, 'b': 'c'}, then sending **payload will result in function call with (…, a=‘1’, ‘b’=‘c’) as arguments
-            update_mx_destinations = mdashboard.connectivity_monitoring_destinations.updateNetworkConnectivityMonitoringDestinations(str(network_info), **payload)
+# final call to update Meraki VPN config
+updatemvpn = mdashboard.organizations.updateOrganizationThirdPartyVPNPeers(
+    meraki_config['org_id'], merakivpns[0]
+    )
