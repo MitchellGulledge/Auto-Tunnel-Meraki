@@ -61,35 +61,38 @@ for i in tagsnetwork:
             break # if box isnt firmware compliant we break from the loop
         modelnumber = xdevices['model']
 
-        primary_vpn_tunnel_ip = ''
-        secondary_vpn_tunnel_ip = ''
-
+        primary_vpn_tunnel_ip = '' # variable for umbrella public IP
         # detecting region to determine umbrella public IP addresses to place in IPsec config
-        if "SIG-US1-" in i['tags']: # US West Region
-            # primary tunnel will be built to the LA PoP
+        if "SIG-PA-" in i['tags']: # US West Region
+            # primary tunnel will be built to the PA PoP
             primary_vpn_tunnel_ip = '146.112.67.8'
-            # backup tunnel will be built to the Palo Alto PoP
-            secondary_vpn_tunnel_ip = '146.112.66.8'
-        elif "SIG-US2-" in i['tags']: # US East Region
+        elif "SIG-LA-" in i['tags']: # US West Region
+            # primary tunnel will be built to the LA PoP
+            primary_vpn_tunnel_ip = '146.112.66.8'
+        elif "SIG-NY-" in i['tags']: # East US Region
             # primary tunnel will be built to the NY PoP
             primary_vpn_tunnel_ip = '146.112.83.8'
-            # backup tunnel will be built to the Ashburn PoP
-            secondary_vpn_tunnel_ip = '146.112.82.8'
-        elif "SIG-EU-" in i['tags']: # EMEAR Region
+        elif "SIG-VA-" in i['tags']: # East US Region
+            # primary tunnel will be built to the VA PoP
+            primary_vpn_tunnel_ip = '146.112.82.8'
+        elif "SIG-UK-" in i['tags']: # UK Region
             # primary tunnel will be built to the UK PoP
             primary_vpn_tunnel_ip = '146.112.97.8'
-            # backup tunnel will be built to the DE PoP
-            secondary_vpn_tunnel_ip = '146.112.96.8'
-        elif "SIG-AU-" in i['tags']: # AUS Region
-            # primary tunnel will be built to the SYD PoP
-            primary_vpn_tunnel_ip = '146.112.118.8'
-            # backup tunnel will be built to the Melbourn PoP
-            secondary_vpn_tunnel_ip = '146.112.119.8'
-        elif "SIG-AS-" in i['tags']: # ASIA Region
+        elif "SIG-DE-" in i['tags']: # Frankfurt Region
+            # primary tunnel will be built to the Frankfurt PoP
+            primary_vpn_tunnel_ip = '146.112.96.8'
+        elif "SIG-SG-" in i['tags']: # Singapore Region
             # primary tunnel will be built to the SG PoP
             primary_vpn_tunnel_ip = '146.112.113.8'
-            # backup tunnel will be built to the JP PoP
-            secondary_vpn_tunnel_ip = '146.112.112.8'
+        elif "SIG-JP-" in i['tags']: # Asia Region
+            # primary tunnel will be built to the Tokyo PoP
+            primary_vpn_tunnel_ip = '146.112.112.8'
+        elif "SIG-SYD-" in i['tags']: # Aus Region
+            # primary tunnel will be built to the Sydney PoP
+            primary_vpn_tunnel_ip = '146.112.118.8'
+        elif "SIG-ME-" in i['tags']: # Aus Region
+            # primary tunnel will be built to the Melbourne PoP
+            primary_vpn_tunnel_ip = '146.112.119.8'
         
         # Set basics to make an API call to Umbrella for tunnel creation
         url = '<a href="https://management.api.umbrella.com/v1/organizations/2506818/tunnels">https://management.api.umbrella.com/v1/organizations/2506818/tunnels</a>'
@@ -141,10 +144,6 @@ for i in tagsnetwork:
             add_vpn_fqdn = add_vpn_psk.replace('mitch@umbrella.com',tunnelPSKFqdn)
             print(add_vpn_fqdn)
             newmerakivpns = merakivpns[0]
-
-            # creating secondary VPN tunnel
-            secondary_vpn_tunnel_template = '{"name":' + str(netname) + '"-sec","publicIp":' + str(secondary_vpn_tunnel_ip) + ',"privateSubnets":["0.0.0.0/0"],"secret":"' + str(tunnelPSKSecret) + ',"ipsecPolicies":{"ikeCipherAlgo":["aes256"],"ikeAuthAlgo":["sha1"],"ikeDiffieHellmanGroup":["group2"],"ikeLifetime":28800,"childCipherAlgo":["aes256"],"childAuthAlgo":["sha1"],"childPfsGroup":["group2"],"childLifetime":3600},"networkTags":["'+str(specifictag[0])+'"]}'
-
             # appending newly created tunnel config to original VPN list
             newmerakivpns.append(json.loads(add_vpn_fqdn)) # appending new vpn config with original vpn config
             #newmerakivpns.append(json.loads(secondary_vpn_tunnel_template)) # appending backup tunnel config to vpn list
