@@ -5,7 +5,6 @@ Even though configuring the Cisco Meraki MX and Cisco Umbrella tunnel endpoint, 
 
 Next, you log in to the Cisco Meraki dashboard. Then, go to MX’s Site-to-site VPN page, scroll down to Non-Meraki VPN and configure the settings manually for each site. 
 
-
 Then, repeat, for each new site on each of the corresponding dashboards.
 
 # Objective
@@ -27,10 +26,6 @@ Cisco Meraki Org Name
 
 At a high level, the script will use the API keys provided to automate the entire process. On the Cisco Meraki dashboard, we leverage network tags to help identity target networks and match it to a specific Cisco Umbrella SIG datacenter. The tag structure should follow the form “SIG-{DC to use}-{any value you define}.”
 
-
-
-
-
 The following table defines the expected DC each tag will configure for your tunnel setup.
 
 
@@ -43,34 +38,8 @@ A couple of things to remember:
 The script also assumes VPN is already turned on for the specific MX.
 For the tunnel to come up, interesting traffic needs to be generated.
 
-
-Troubleshooting
-Umbrella
-
 To troubleshoot what policy you are hitting, use this debugger link:
 
 http://policy-debug.checkumbrella.com/
-
-
-Check out the following example:
-
-
-
-
-
-
-Meraki
-
-Check if the VPN tunnel is up.
-
-Option 1: Graphical
-
-Security & SD-WAN -> VPN status
-
-
-
-Option 2: Logs
-
-Network-wide -> Event log
 
 
