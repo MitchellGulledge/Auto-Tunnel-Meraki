@@ -16,6 +16,8 @@ Allow Cisco customers that have Cisco Meraki MXes and a subscription to Cisco Um
 
 Cisco Umbrella API secret and key
 
+Cisco Umbrella Org ID
+
 Cisco Meraki API
 
 Cisco Meraki Org Name
