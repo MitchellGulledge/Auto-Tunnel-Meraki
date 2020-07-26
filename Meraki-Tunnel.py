@@ -2,7 +2,6 @@ import requests, json, time
 import meraki
 import re
 import ast
-import sys
 import base64
 
 # Author: Mitchell Gulledge
@@ -19,13 +18,12 @@ class UmbrellaConfig:
     # this is obtained from the api keys tab and specifically the umbrella management keys
     key = ''
     secret = ''
-    # org ID for umbrella obtained via the dashboard url
-    umbrella_org_id = ''
     # Command -  echo -n 'secret:key' | base64 in terminal
     base64_value = key + ':' + secret
     message_bytes = base64_value.encode('ascii')
     base64_bytes = base64.b64encode(message_bytes)
     base64_message = base64_bytes.decode('ascii')
+    umbrella_org_id = ''
     tunnel_url = "https://management.api.umbrella.com/v1/organizations/"+umbrella_org_id+"/tunnels"
     # creating header to authenticate API requests to Umbrella
     headers = {'Authorization': 'Basic ' + base64_message}
@@ -60,6 +58,12 @@ def get_meraki_ipsec_config(name, local_id, public_ip, secret, network_tags) -> 
     }
     return ipsec_config
 
+# function to update Meraki VPN config
+def update_meraki_vpn():
+    updatemvpn = mdashboard.organizations.updateOrganizationThirdPartyVPNPeers(
+    MerakiConfig.org_id, merakivpns[0]
+    )
+
 # this function creates an umbrella IPsec tunnel
 def create_umbrella_tunnel(tunnel_name):
     tunnel_response = requests.post(UmbrellaConfig.tunnel_url, headers=UmbrellaConfig.headers, \
@@ -81,8 +85,11 @@ tags_network = mdashboard.networks.getOrganizationNetworks(MerakiConfig.org_id)
 
 # loop that iterates through the variable tagsnetwork and matches networks with SIG- in the tag
 for meraki_networks in tags_network:
+    # need to account for Nonetype datatype when iterating through loop
+    if meraki_networks['tags'] == None: 
+        pass
     # searches for any network that has a tag beginning with SIG-
-    if "SIG-" in meraki_networks['tags']: 
+    elif "SIG-" in meraki_networks['tags']: 
         # obtaining network ID in order to obtain device information
         network_info = meraki_networks['id'] 
         # network name used to label Meraki VPN and Umbrella ipsec config
@@ -153,7 +160,6 @@ for meraki_networks in tags_network:
 
         # now we can iterate through the loop and see if netname is contained within the get_req variable
         for tunnel_name in umbrella_tunnel_dict:
-            print(tunnel_name['name'])
             if netname == tunnel_name['name']:
                 tunnel_already_made = True
                 print("tunnel detected in Umbrella config")
@@ -168,7 +174,6 @@ for meraki_networks in tags_network:
 
             # Access tunnel ID
             tunnelId = umbrella_tunnel_info["id"]
-
             # Access PSK id:key
             client = umbrella_tunnel_info["client"]
 
@@ -184,15 +189,12 @@ for meraki_networks in tags_network:
 
             # Build meraki config for IPsec configuration (using get_meraki_ipsec_config function)
             primary_vpn_tunnel_template = get_meraki_ipsec_config(netname, tunnelPSKFqdn, \
-            primary_vpn_tunnel_ip, tunnelPSKSecret, specific_tag1[0])
+            primary_vpn_tunnel_ip, tunnelPSKSecret, specifictag1[0])
         
             newmerakivpns = merakivpns[0]
             # appending newly created tunnel config to original VPN list
             newmerakivpns.append(json.loads(primary_vpn_tunnel_template)) # appending new vpn config with original vpn config
             print(newmerakivpns)
 
-# final call to update Meraki VPN config
-updatemvpn = mdashboard.organizations.updateOrganizationThirdPartyVPNPeers(
-    MerakiConfig.org_id, merakivpns[0]
-    )
-    
+# final function performing update to Meraki VPN config
+update_meraki_vpn()
