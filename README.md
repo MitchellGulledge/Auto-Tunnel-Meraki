@@ -35,9 +35,7 @@ The following table defines the expected DC each tag will configure for your tun
 
 Network Tag | SIG-PA-XXXX | SIG-LA-XXXX | SIG-NY-XXXX | SIG-VA-XXXX | SIG-UK-XXXX | SIG-DE-XXXX | SIG-SG-XXXX | SIG-JP-XXXX | SIG-SYD-XXXX | SIG-ME-XXXX 
 --- | --- | --- | --- |--- |--- |--- |--- |--- |--- |--- 
-Datacenter | Palo Alto | Los Angelos | New York | Ashburn Va | London UK | Frankfurt | Singapore | Japan | Sydney Aus | Melbourne Aus 
- --- --- --- --- --- --- --- --- --- --- ---
-IPv4 | 146.112.67.8 | 146.112.66.8 | 146.112.83.8 | 146.112.82.8 | 146.112.97.8 | 146.112.96.8 | 146.112.113.8 | 146.112.112.8 | 146.112.118.8 | 146.112.119.8 
+Datacenter IP | Palo Alto 146.112.67.8 | Los Angelos 146.112.66.8 | New York 146.112.83.8 | Ashburn Va 146.112.82.8 | London UK 146.112.97.8 | Frankfurt 146.112.96.8 | Singapore 146.112.113.8 | Japan 146.112.112.8 | Sydney Aus 146.112.118.8 | Melbourne Aus 146.112.119.8 
 
 
 A couple of things to remember:
