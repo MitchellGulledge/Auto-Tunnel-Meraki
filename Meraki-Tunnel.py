@@ -3,12 +3,14 @@ import meraki
 import re
 import ast
 import base64
+from math import radians, cos, sin, asin, sqrt
+from ip2geotools.databases.noncommercial import DbIpCity
 
 # Author: Mitchell Gulledge
 
 # class that contains all Meraki necessary config
 class MerakiConfig:
-    api_key = ''
+    api_key = '' 
     org_name = ''
     tag_prefix = 'SIG-'
     org_id = None
@@ -18,13 +20,16 @@ class UmbrellaConfig:
     # this is obtained from the api keys tab and specifically the umbrella management keys
     key = ''
     secret = ''
-    org_id = ''
+    org_id = '\'
     # Command -  echo -n 'secret:key' | base64 in terminal
     base64_value = key + ':' + secret
     message_bytes = base64_value.encode('ascii')
     base64_bytes = base64.b64encode(message_bytes)
     base64_message = base64_bytes.decode('ascii')
+    # url for network tunnels in umbrella dashboard
     tunnel_url = "https://management.api.umbrella.com/v1/organizations/"+org_id+"/tunnels"
+    # url for listing umbrella DCs
+    dc_url = 'https://management.api.umbrella.com/v1/service/tunnel/datacenters'
     # creating header to authenticate API requests to Umbrella
     headers = {'Authorization': 'Basic ' + base64_message}
 
@@ -63,54 +68,87 @@ def get_meraki_ipsec_config(name, public_ip, secret, network_tags, local_id) -> 
         "networkTags": [ network_tags ],
         "myUserFqdn": local_id
     }
+
     return ipsec_config
 
-# function to determine the vpn peer IP for the Meraki branch from network tags
-def define_vpn_peer_ip(meraki_tag_list):
-    primary_vpn_tunnel_ip = '' # variable for umbrella public IP
+# this function performs the haversine formula to calculate distance between two endpoints
+# the variables being fed in are the long/lat of the Umbrella DC and MX site IP
+def haversine(lon1, lat1, lon2, lat2):
+    """
+    Calculate the great circle distance between two points 
+    on the earth (specified in decimal degrees)
+    """
+    # convert decimal degrees to radians 
+    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
 
-    # detecting region to determine umbrella public IP addresses to place in IPsec config
-    if "SIG-PA-" in meraki_tag_list: # US West Region
-        # primary tunnel will be built to the PA PoP
-        primary_vpn_tunnel_ip = '146.112.67.8'
+    # haversine formula 
+    dlon = lon2 - lon1 
+    dlat = lat2 - lat1 
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * asin(sqrt(a)) 
+    r = 6371 # Radius of earth in kilometers. Use 3956 for miles
+    return c * r
 
-    elif "SIG-LA-" in meraki_tag_list: # US West Region
-        # primary tunnel will be built to the LA PoP
-        primary_vpn_tunnel_ip = '146.112.66.8'
+# this function is intended to replace define_vpn_peer_ip function
+def get_dc_ip(networkId):
 
-    elif "SIG-NY-" in meraki_tag_list: # East US Region
-        # primary tunnel will be built to the NY PoP
-        primary_vpn_tunnel_ip = '146.112.83.8'
+    # variables for the longitude/latitude for both sites
+    lon1 = ''
+    lat1 = ''
+    lon2 = ''
+    lat2 = ''
 
-    elif "SIG-VA-" in meraki_tag_list: # East US Region
-        # primary tunnel will be built to the VA PoP
-        primary_vpn_tunnel_ip = '146.112.82.8'
+    # creating variable to that contains branch IP of MX
+    mx_branch_ip = ''
 
-    elif "SIG-UK-" in meraki_tag_list: # UK Region
-        # primary tunnel will be built to the UK PoP
-        primary_vpn_tunnel_ip = '146.112.97.8'
+    # obtaining branch MXs public IP w/ org wide network devices call
+    list_of_device_statuses = mdashboard.organizations.getOrganizationDeviceStatuses(
+        MerakiConfig.org_id)
 
-    elif "SIG-DE-" in meraki_tag_list: # Frankfurt Region
-        # primary tunnel will be built to the Frankfurt PoP
-        primary_vpn_tunnel_ip = '146.112.96.8'
+    for device in list_of_device_statuses:
+        # conditional statement to match based on network id variable
+        if networkId == device['networkId']:
+            # setting public ip for branch to later calculate long/lat
+            mx_branch_ip = device['publicIp']
+            # calculating long/lat of mx branch ip address
+            geo_response = DbIpCity.get(mx_branch_ip, api_key='free')
+            lon1 = geo_response.longitude
+            lat1 = geo_response.latitude
 
-    elif "SIG-SG-" in meraki_tag_list: # Singapore Region
-        # primary tunnel will be built to the SG PoP
-        primary_vpn_tunnel_ip = '146.112.113.8'
+    # variable for umbrella public IP
+    primary_vpn_tunnel_ip = '' 
 
-    elif "SIG-JP-" in meraki_tag_list: # Asia Region
-        # primary tunnel will be built to the Tokyo PoP
-        primary_vpn_tunnel_ip = '146.112.112.8'
+    # distance variable that will be used to select closest DC
+    distance_to_dc = 999999
 
-    elif "SIG-SYD-" in meraki_tag_list: # Aus Region
-        # primary tunnel will be built to the Sydney PoP
-        primary_vpn_tunnel_ip = '146.112.118.8'
+    # request to obtain list of DCs
+    get_dc_req = requests.get(UmbrellaConfig.dc_url, headers=UmbrellaConfig.headers)
 
-    elif "SIG-ME-" in meraki_tag_list: # Aus Region
-        # primary tunnel will be built to the Melbourne PoP
-        primary_vpn_tunnel_ip = '146.112.119.8'
+    # if response is successful begin building variables to feed into haversine formula
+    if get_dc_req.status_code == 200:
+        for datacenters in get_dc_req.json()['continents']:
+            for umb_datacenter in datacenters['cities']:
+                if not umb_datacenter['range'].split('/')[0][-1] == '8':
+                    continue
+                #print("Checking " + umb_datacenter['range'])
+                # umbrella dc latitude
+                lat2 = umb_datacenter['latitude']
+                # umbrella dc latitude
+                lon2 = umb_datacenter['longitude']
 
-    return primary_vpn_tunnel_ip
+                # executing Haversine Formula
+                haversince_result = haversine(float(lon1), float(lat1), \
+                    float(lon2), float(lat2))
+
+                # when iterating through list if haversince_result is less than distance_to_dc
+                # rewrite the distance_to_dc variable to the haversince_result
+                if haversince_result < distance_to_dc:
+                    distance_to_dc = haversince_result
+                    primary_vpn_tunnel_ip = umb_datacenter['range']
+                    primary_vpn_tunnel_ip = str(primary_vpn_tunnel_ip)[0:-3]
+
+        return primary_vpn_tunnel_ip
+
 
 def delete_umbrella_tunnel(vpn_tunnel_name):
     # fetching list of umbrella tunnel config
@@ -157,6 +195,7 @@ def validate_mx_firmware(branch_node):
     else:
         print("firmware is not compliant breaking loop")
         firmwarecompliance = False
+
     return firmwarecompliance
 
 # this function creates an umbrella IPsec tunnel and return FQDN and Secret
@@ -219,15 +258,14 @@ for meraki_networks in tags_network:
             # if the firmware validation returns as false the script will break from the loop
             break 
 
-        # calling function to obtain the umbrella vpn IP determined from the tag placed on network
-        meraki_branch_peer_ip = define_vpn_peer_ip(meraki_networks['tags'])
+        # executing function to obtain the vpn peer ip for the meraki branch device
+        meraki_branch_peer_ip = get_dc_ip(network_info)
+        print("look here for primary vpn ip")
+        print(meraki_branch_peer_ip)
 
         # creating umbrella ipsec config to be the data in the post, netname variable is tunnel name
         umbrella_tunnel_name = {"name": netname, 'deviceType': 'Meraki MX'}
         umbrella_tunnel_data = json.dumps(umbrella_tunnel_name)
-
-        # variable flipped true if Umbrella API indicates that the tunnel name already exists
-        tunnel_already_made = False 
 
         # fetching list of umbrella tunnel config
         get_req = requests.get(UmbrellaConfig.tunnel_url, headers=UmbrellaConfig.headers)
@@ -238,8 +276,8 @@ for meraki_networks in tags_network:
         # creating placeholder variable for detecting whether the tunnel is created or not in umbrella
         tunnel_already_made = False
 
-        # placeholder variable for detecting whether the tunnel is created in umbrella and not meraki
-        in_umb_not_meraki = False 
+        # placeholder variable for detecting whether the tunnel is created in umbrella and meraki
+        in_umb_and_meraki_config = False 
 
         # now we can iterate through the loop and see if netname is contained within the get_req variable
         for tunnel_name in umbrella_tunnel_dict:
@@ -251,22 +289,23 @@ for meraki_networks in tags_network:
         
         # if tunnel is built in umbrella already but not Meraki we need to detect and update config
         if tunnel_already_made == True:
+            # iterating through original list of vpn tunnels from Meraki to match on name
             for meraki_tunnel_name in merakivpns:
                 if netname == meraki_tunnel_name['name']:
                     print("tunnel config in umbrella matches Meraki for " + netname)
+                    # changing variable for being detected in umbrella and meraki config
+                    in_umb_and_meraki_config = True
                 else:
                     print("tunnel not built in Meraki config for " + netname)
-                    # need to signal that config is in umbrella and not meraki
-                    in_umb_not_meraki = True 
 
         # if tunnel is built in umbrella already but not Meraki we need to detect and update config
-        if in_umb_not_meraki == True:
+        if in_umb_and_meraki_config == False:
 
             # calling function to strip tag for network in umbrella config
             meraki_net_tag = strip_meraki_network_tags(nettag)
 
             # calling function to determine public vpn peer ip for Meraki config
-            vpn_peer_ip = define_vpn_peer_ip(meraki_net_tag)
+            vpn_peer_ip = get_dc_ip(network_info)
 
             # deleting umbrella tunnel config and set tunnel_already_made variable to False
             delete_umb_tun = delete_umbrella_tunnel(netname)
