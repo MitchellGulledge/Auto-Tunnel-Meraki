@@ -1,49 +1,47 @@
 # Overview
 
-This toolkit enables Meraki and Umbrella customers to streamline always on connectivity from a Cisco Meraki Branch site to Cisco Umbrella SIG.
+This toolkit enables Meraki and Umbrella customers to streamline always on connectivity from a Cisco Meraki Branch site to Cisco Umbrella SIG. Extending secure and automated connectivity to the Umbrella Cloud Security Service. 
 
-# Problem
+# Architecture
 
-Even though configuring the Cisco Meraki MX and Cisco Umbrella tunnel endpoint, it is a manual task and can be daunting when doing it for hundreds of sites. To accomplish the setup, you need to log in to the Cisco Umbrella dashboard; create a Network tunnel; and obtain a tunnel ID and passphrase.
+![Test Image 1](topology.png)
 
+# Deployment Steps 
 
-Next, you log in to the Cisco Meraki dashboard. Then, go to MX’s Site-to-site VPN page, scroll down to Non-Meraki VPN and configure the settings manually for each site. 
+1) Obtain Cisco Meraki API Key and Org Name
 
-Then, repeat, for each new site on each of the corresponding dashboards.
+    a) The API Key and Org Name will be needed for the script to configure your Meraki device. 
 
-# Objective
+    b) To view your Organization name navigate to Organization > Settings, the name will be displayed at the top.
+    
+    c) For access to the API, first enable the API for your organization. 
 
-Allow Cisco customers that have Cisco Meraki MXes and a subscription to Cisco Umbrella SIG to easily scale connections to both services in a supported manner today!
+    d) Navigate to Organization > Settings > Dashboard API access 
 
-# Requirements
+    e) Enable the API 
+    
+    f) Navigate to the my profile page and generate an API key 
 
-Cisco Umbrella API secret and key
+      Note: The API key is associated with a Dashboard administrator account.   
+      
+Note: The toolkit also contains a firmware validation checker. One of the requirements for the solution is that the branch MX must be on firmware 15 or greater. This is due to the fact that connectivity to Umbrella SIG requires IKEv2 which is only supported in version 15 firmware. Checks have been placed in the script to ensure sites are on the appropriate firmware.
 
-Cisco Umbrella Org ID
+# Cisco Meraki Workflow 
 
-Cisco Meraki API
+Initially, there will be no tagged Meraki networks so the script will sleep and perform the same GET to obtain any networks with the relevant tag. In order to deploy a new branch, the user would navigate to Organization > Overview and select the checkbox next to the network that you wish to connect. 
 
-Cisco Meraki Org Name
+Once the network is tagged appropriately, connectivity is then automatically established. A customer VPN tunnel in the Umbrella dashboard is created with a matching network name to that of the Meraki branch. Site1 will be named Site1 in both the Umbrella and Meraki dashboards. Additionally, a site to site VPN will appear on the site to site VPN page.  
 
+The script picks the closest datacenter based on the the closest geographic distance from the public IP. This does not solve the use case for SD WAN, however SD WAN to Umbrella is in the Meraki/Umbrella roadmap. 
 
-# The Solution
-
-At a high level, the script will use the API keys provided to automate the entire process. On the Cisco Meraki dashboard, we leverage network tags to help identity target networks and match it to a specific Cisco Umbrella SIG datacenter. The tag structure should follow the form “SIG-{DC to use}-{any value you define}.”
-
-The following table defines the expected DC each tag will configure for your tunnel setup.
-
-
-Network Tag | SIG-PA-XXXX | SIG-LA-XXXX | SIG-NY-XXXX | SIG-VA-XXXX | SIG-UK-XXXX | SIG-DE-XXXX | SIG-SG-XXXX | SIG-JP-XXXX | SIG-SYD-XXXX | SIG-ME-XXXX 
---- | --- | --- | --- |--- |--- |--- |--- |--- |--- |--- 
-Datacenter IP | Palo Alto 146.112.67.8 | Los Angelos 146.112.66.8 | New York 146.112.83.8 | Ashburn Va 146.112.82.8 | London UK 146.112.97.8 | Frankfurt 146.112.96.8 | Singapore 146.112.113.8 | Japan 146.112.112.8 | Sydney Aus 146.112.118.8 | Melbourne Aus 146.112.119.8 
-
-
-A couple of things to remember:
-The script also assumes VPN is already turned on for the specific MX.
-For the tunnel to come up, interesting traffic needs to be generated.
+Note: The script also assumes VPN is already turned on for the specific MX. For the tunnel to come up, interesting traffic needs to be generated.
 
 To troubleshoot what policy you are hitting, use this debugger link:
 
 http://policy-debug.checkumbrella.com/
 
+# Additional References 
 
+https://documentation.meraki.com/zGeneral_Administration/Organizations_and_Networks/Organization_Menu/Manage_Tags 
+
+https://documentation.meraki.com/zGeneral_Administration/Support/Contacting_Support
