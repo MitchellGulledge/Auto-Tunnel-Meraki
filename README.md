@@ -12,7 +12,9 @@ This toolkit enables Meraki and Umbrella customers to streamline always on conne
 
     a) The API Key and Org Name will be needed for the script to configure your Meraki device. 
 
-    b) To view your Organization name navigate to Organization > Settings, the name will be displayed at the top.
+    b) To view your Organization name navigate to Organization > Settings, the name will be displayed at the top. (As seen below)
+    
+    ![Test Image 1](org_overview.png)
     
     c) For access to the API, first enable the API for your organization. 
 
@@ -20,9 +22,29 @@ This toolkit enables Meraki and Umbrella customers to streamline always on conne
 
     e) Enable the API 
     
+    ![Test Image 1](enable_meraki_api.png)
+    
     f) Navigate to the my profile page and generate an API key 
+    
+    ![Test Image 1](generate_meraki_api.png)
 
       Note: The API key is associated with a Dashboard administrator account.   
+      
+2) Obtain Umbrella Management API Key and Secret 
+
+    a) Download the Mgmt API keys from Umbrella Dashboard. 
+
+    b) Login to Umbrella Dashboard, chose the Org
+
+    c) Navigate to Admin->API Keys menu on Left hand side. 
+
+    d) Once there click on ‘Umbrella Management’. You may need to refresh the keys to get a new set. 
+
+    e) If you don’t find ‘Umbrella Management’ then click on ‘Create’ to create one.
+    
+      Note: You may follow the directions - https://docs.umbrella.com/umbrella-api/reference#rateauthentication-and-key-management-for-the-umbrella-api
+      
+3) Download Meraki-Tunnel.py file and enter the Meraki API key and Org name along with the Umbrella Org ID and Mangagement API information under the Umbrella and Meraki classes. 
       
 Note: The toolkit also contains a firmware validation checker. One of the requirements for the solution is that the branch MX must be on firmware 15 or greater. This is due to the fact that connectivity to Umbrella SIG requires IKEv2 which is only supported in version 15 firmware. Checks have been placed in the script to ensure sites are on the appropriate firmware.
 
