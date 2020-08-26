@@ -52,7 +52,9 @@ Note: The toolkit also contains a firmware validation checker. One of the requir
 
 Initially, there will be no tagged Meraki networks so the script will sleep and perform the same GET to obtain any networks with the relevant tag. In order to deploy a new branch, the user would navigate to Organization > Overview and select the checkbox next to the network that you wish to connect. 
 
-Once the network is tagged appropriately, connectivity is then automatically established. A customer VPN tunnel in the Umbrella dashboard is created with a matching network name to that of the Meraki branch. Site1 will be named Site1 in both the Umbrella and Meraki dashboards. Additionally, a site to site VPN will appear on the site to site VPN page.  
+Once the network is tagged appropriately, connectivity is then automatically established. A customer VPN tunnel in the Umbrella dashboard is created with a matching network name to that of the Meraki branch. Site1 will be named Site1 in both the Umbrella and Meraki dashboards. Additionally, a site to site VPN will appear on the site to site VPN page. (As seen below)
+
+![Test Image 1](Meraki_vpn_config.png)
 
 The script picks the closest datacenter based on the the closest geographic distance from the public IP. This does not solve the use case for SD WAN, however SD WAN to Umbrella is in the Meraki/Umbrella roadmap. 
 
