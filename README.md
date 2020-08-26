@@ -79,6 +79,16 @@ The script picks the closest datacenter based on the the closest geographic dist
 
 Note: The script also assumes VPN is already turned on for the specific MX. For the tunnel to come up, interesting traffic needs to be generated.
 
+Once interesting traffic has been generated, the tunnel will appear up in both the Meraki and Umbrella Dashboards:
+
+![Test Image 1](meraki status.png)
+
+![Test Image 1](Umbrella tunnel status.png)
+
+Additionally, in the Meraki Event Log, a event with a timestamp is generated when the tunnel becomes established:
+
+![Test Image 1](event log.png)
+
 To troubleshoot what policy you are hitting, use this debugger link:
 
 http://policy-debug.checkumbrella.com/
