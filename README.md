@@ -45,6 +45,23 @@ This toolkit enables Meraki and Umbrella customers to streamline always on conne
       Note: You may follow the directions - https://docs.umbrella.com/umbrella-api/reference#rateauthentication-and-key-management-for-the-umbrella-api
       
 3) Download Meraki-Tunnel.py file and enter the Meraki API key and Org name along with the Umbrella Org ID and Mangagement API information under the Umbrella and Meraki classes. 
+
+```
+# class that contains all Meraki necessary config
+class MerakiConfig:
+    api_key = '' 
+    org_name = ''
+
+...
+
+# class that contains all Umbrella necessary config
+class UmbrellaConfig:
+    # this is obtained from the api keys tab and specifically the umbrella management keys
+    key = ''
+    secret = ''
+    org_id = ''
+
+```
       
 Note: The toolkit also contains a firmware validation checker. One of the requirements for the solution is that the branch MX must be on firmware 15 or greater. This is due to the fact that connectivity to Umbrella SIG requires IKEv2 which is only supported in version 15 firmware. Checks have been placed in the script to ensure sites are on the appropriate firmware.
 
