@@ -10,6 +10,7 @@ This toolkit enables Meraki and Umbrella customers to streamline always on conne
 
 ![Test Image 1](topology.png)
 
+
 # Deployment Steps 
 
 1) Obtain Cisco Meraki API Key and Org Name
@@ -85,7 +86,7 @@ Tip: More information on each of the required parameters can be found by hoverin
 
 Example Configuration 
 
-image (insert later)
+![Test Image 1](func_app.png)
 
 
 # Cisco Meraki Workflow 
