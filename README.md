@@ -71,7 +71,22 @@ Note: The toolkit also contains a firmware validation checker. One of the requir
 
 # Deploying to Azure 
 
+To deploy the Azure Function, click on the deploy to Azure buttons below:
+
 [![Deploy to Azure](https://azuredeploy.net/deploybutton.png)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FMitchellGulledge%2FUmbrakiServerless%2Fmain%2Fazuredeploy.json)
+
+Next, click the Deploy to Azure button. 
+
+When logged in to the Azure Portal, fill out the required parameters and click Review + Create. 
+
+Note: The Function App Name should not contain any special characters other than “-“.  The function app also needs to be unique globally within Azure, so please use a name that is unique to your organization. 
+
+Tip: More information on each of the required parameters can be found by hovering over the  icon in the Azure Portal. 
+
+Example Configuration 
+
+image (insert later)
+
 
 # Cisco Meraki Workflow 
 
