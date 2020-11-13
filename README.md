@@ -69,6 +69,10 @@ class UmbrellaConfig:
       
 Note: The toolkit also contains a firmware validation checker. One of the requirements for the solution is that the branch MX must be on firmware 15 or greater. This is due to the fact that connectivity to Umbrella SIG requires IKEv2 which is only supported in version 15 firmware. Checks have been placed in the script to ensure sites are on the appropriate firmware.
 
+# Deploying to Azure 
+
+[![Deploy to Azure](https://azuredeploy.net/deploybutton.png)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FMitchellGulledge%2FUmbrakiServerless%2Fmain%2Fazuredeploy.json)
+
 # Cisco Meraki Workflow 
 
 Initially, there will be no tagged Meraki networks so the script will sleep and perform the same GET to obtain any networks with the relevant tag. In order to deploy a new branch, the user would navigate to Organization > Overview and select the checkbox next to the network that you wish to connect. 
