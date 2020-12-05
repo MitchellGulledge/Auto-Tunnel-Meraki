@@ -4,6 +4,8 @@ import re
 import ast
 import base64
 from math import radians, cos, sin, asin, sqrt
+import geonamescache
+import pycountry_convert as pc
 
 # Author: Mitchell Gulledge
 
@@ -135,9 +137,11 @@ def get_dc_ip(networkId):
     mx_branch_ip = ''
 
     # obtaining branch MXs public IP w/ org wide network devices call
+    print("Obtaining list of Meraki device statuses")
     list_of_device_statuses = MerakiConfig.sdk_auth.organizations.getOrganizationDevicesStatuses(
         MerakiConfig.org_id)
-    if list_of_device_statuses.status_code == 200:
+
+    if str(networkId)  in str(list_of_device_statuses):
         print("Successfully obtained list of Device statuses")
     else:
         print("Unable to obtain list of Meraki Network Device statuses")
@@ -149,11 +153,41 @@ def get_dc_ip(networkId):
             mx_branch_ip = device['publicIp']
             print("public IP of Branch is: " + str(mx_branch_ip))
             # calculating long/lat of mx branch ip address
-            geo_response = DbIpCity.get(mx_branch_ip, api_key='free')
-            lon1 = geo_response.longitude
-            lat1 = geo_response.latitude
+            geo_url = "https://ipinfo.io/" + mx_branch_ip 
+            geo_response2 = requests.get(geo_url).json()
+            print(geo_response2)
+            
+            print(f"Longitude/Lat for Branch is : {geo_response2['loc']}")
+
+            x = geo_response2['loc']
+            long_lat_tuple = tuple(x.split(','))
+
+            lon1 = long_lat_tuple[0]
+            lat1 = long_lat_tuple[1]
+
             print("branch longitude is " + str(lon1))
             print("branch latitude is " + str(lat1))
+
+            # obtaining country name to later map to a continent
+            branch_country = geo_response2['country']
+
+            # creating continent variable so we can later iterate through smaller list of umbrella DCs
+            continent_name = pc.country_alpha2_to_continent_code(branch_country)
+            print("The branch site has been mapped to continent " + continent_name)
+
+            site_continent = ''
+
+            # mapping continent code to continent name
+            if continent_name == 'NA':
+                site_continent = 'North America'
+            elif continent_name == 'SA':
+                site_continent = 'South America'
+            elif continent_name == 'AS':
+                site_continent = 'Asia'
+            elif continent_name == 'OC':
+                site_continent = 'Australia'
+            elif continent_name == 'AF':
+                site_continent = 'Africa'
 
     # variable for umbrella public IP
     primary_vpn_tunnel_ip = '' 
@@ -163,13 +197,30 @@ def get_dc_ip(networkId):
 
     # request to obtain list of DCs
     get_dc_req = requests.get(UmbrellaConfig.dc_url, headers=UmbrellaConfig.headers)
-    print(get_dc_req)
+    print("Obtaining a list of all Umbrella Datacenters: " + str(get_dc_req.content))
+
+    # creating list to hold all regional DCs 
+    list_of_regional_dcs = []
+
+    # iterating through list of DCs to match based on continent name
+    for dc in get_dc_req.json()['continents']:
+        if str(site_continent) in str(dc['name']):
+
+            # appending DC to list of DCs in the same continent
+            list_of_regional_dcs.append(dc)
+
+    print("List of regional DCs: " + str(list_of_regional_dcs))
+        
+
     # if response is successful begin building variables to feed into haversine formula
     if get_dc_req.status_code == 200:
-        for datacenters in get_dc_req.json()['continents']:
+        for datacenters in list_of_regional_dcs:
+            print("matched site to corressponding continent for DC selection")
+        
             for umb_datacenter in datacenters['cities']:
                 if not umb_datacenter['range'].split('/')[0][-1] == '8':
                     continue
+                print(umb_datacenter)
                 # umbrella dc latitude
                 lat2 = umb_datacenter['latitude']
                 print("Latitude of potential Umbrella DC: " + str(lat2))
@@ -182,6 +233,9 @@ def get_dc_ip(networkId):
                 haversince_result = haversine(float(lon1), float(lat1), \
                     float(lon2), float(lat2))
                 print("Haversine result for branch to potential Umbrella DC: " + str(haversince_result))
+
+                # setting haversine result to the absolute value
+                haversince_result = abs(haversince_result)
 
                 # when iterating through list if haversince_result is less than distance_to_dc
                 # rewrite the distance_to_dc variable to the haversince_result
