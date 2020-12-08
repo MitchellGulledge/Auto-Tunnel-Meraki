@@ -37,7 +37,7 @@ class MerakiConfig:
             original_vpn = self.sdk_auth.appliance.getOrganizationApplianceVpnThirdPartyVPNPeers(self.org_id)
             print("response from Meraki SDK for obtaining original org wide peer settings: " + str(original_vpn))
 
-            meraki_vpn_list = original_vpn['peers']
+            self.meraki_vpn_list = original_vpn['peers']
 
             # Meraki call to obtain Network information
             self.tags_network = self.sdk_auth.organizations.getOrganizationNetworks(self.org_id)
