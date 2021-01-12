@@ -86,7 +86,7 @@ Initially, there will be no tagged Meraki networks so the script will sleep and 
 
 ![Test Image 1](tag_network.png)
 
-Once the network is tagged appropriately, connectivity is then automatically established. A customer VPN tunnel in the Umbrella dashboard is created with a matching network name to that of the Meraki branch. Site1 will be named Site1 in both the Umbrella and Meraki dashboards. Additionally, a site to site VPN will appear on the site to site VPN page. (As seen below)
+Once the network is tagged appropriately, connectivity is then automatically established. A customer VPN tunnel in the Umbrella dashboard is created with a matching network name to that of the Meraki branch. Site1 will be named Site1 in both the Umbrella and Meraki dashboards. Additionally, a site to site VPN will appear on the site to site VPN page. In order to properly segment the VPN configuration to a specific site instead of the entire org, the network tag from the Organization Overview page you entered for the network will be seen under availability on the far right of the VPN config. This ensures proper segmentation and that the VPN config is not bound to all networks. (As seen below)
 
 ![Test Image 1](Meraki_vpn_config.png)
 
